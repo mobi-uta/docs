@@ -1,0 +1,72 @@
+name: Node.js CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: build (Node v@${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version:
+            - lts/*
+            - latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Install Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Build packages
+        run: npm run docs:dev
+
+  lint:
+    name: lint (${{ matrix.tool }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - tool: ESLint
+            npm-cmd-suffix: es
+            npm-cmd-env: |
+              npm run lint:es-env
+          - tool: Markdownlint
+            npm-cmd-suffix: md
+            npm-cmd-env: |
+              node --version
+              npm --version
+              npm run lint:md-env
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: latest
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Print environment info
+        run: |
+          ${{ matrix.npm-cmd-env }}
+      - name: Lint with ${{ matrix.tool }}
+        run: npm run lint:${{ matrix.npm-cmd-suffix }}
+
+  ci-success:
+    runs-on: ubuntu-latest
+    if: ${{ success() }}
+    needs:
+      - build
+      - lint
+    steps:
+      - name: ✅ CI succeeded
+        run: exit 0
